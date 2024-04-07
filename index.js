@@ -48,3 +48,6 @@ async function login() {
     process.exit(1);
   }
 }
+
+
+login();
