@@ -71,9 +71,6 @@ async function createTicket(message, categoryID, ticketNumber) {
     }).catch(console.error);
 }
 
-    }
-});
-
 async function login() {
   try {
     await client.login(process.env.TOKEN);
@@ -83,6 +80,5 @@ async function login() {
     process.exit(1);
   }
 }
-
 
 login();
