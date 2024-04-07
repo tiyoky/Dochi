@@ -15,28 +15,62 @@ client.on('messageCreate', message => {
     const command = args.shift().toLowerCase();
 
     if (command === 'setticket') {
-    if (message.author.id !== ownerID) {
-        return message.channel.send("Vous n'avez pas la permission d'utiliser cette commande.");
+        if (message.author.id !== ownerID) {
+            return message.channel.send("Vous n'avez pas la permission d'utiliser cette commande.");
+        }
+        
+        createTicketChannel(message);
     }
+});
 
-    // Crée un salon de tickets
+async function createTicketChannel(message) {
     const category = message.guild.channels.cache.find(c => c.type === 'GUILD_CATEGORY' && c.name === 'Tickets');
     if (!category) {
         message.guild.channels.create('Tickets', { type: 'GUILD_CATEGORY' })
-            .then(category => {
-                message.guild.channels.create('ticket-1', { type: 'GUILD_TEXT', parent: category.id })
-                    .then(ticketChannel => {
-                        ticketChannel.send("Ce salon est un salon de tickets. Utilisez la réaction 🎟️ pour créer un nouveau ticket.");
-                        ticketChannel.permissionOverwrites.edit(message.guild.roles.everyone, { VIEW_CHANNEL: false });
-                    });
-            });
+            .then(category => createTicket(message, category.id, 1));
     } else {
-        message.guild.channels.create(`ticket-${category.children.size + 1}`, { type: 'GUILD_TEXT', parent: category.id })
-            .then(ticketChannel => {
-                ticketChannel.send("Ce salon est un salon de tickets. Utilisez la réaction 🎟️ pour créer un nouveau ticket.");
-                ticketChannel.permissionOverwrites.edit(message.guild.roles.everyone, { VIEW_CHANNEL: false });
-            });
-       }
+        createTicket(message, category.id, category.children.size + 1);
+    }
+}
+
+async function createTicket(message, categoryID, ticketNumber) {
+    const embed = new Discord.MessageEmbed()
+        .setTitle(`${message.guild.name} Support`)
+        .setDescription("Cliquez sur le bouton ci-dessous pour créer un ticket et contacter le support du serveur.")
+        .setColor("#FF5733");
+        
+    const row = new Discord.MessageActionRow()
+        .addComponents(
+            new Discord.MessageButton()
+                .setCustomId('create_ticket')
+                .setLabel('Créer un ticket')
+                .setStyle('PRIMARY')
+        );
+
+    message.channel.send({ embeds: [embed], components: [row] }).then(sentMessage => {
+        const filter = (interaction) => interaction.isButton() && interaction.customId === 'create_ticket' && interaction.user.id === message.author.id;
+        const collector = sentMessage.createMessageComponentCollector({ filter, time: 15000 });
+
+        collector.on('collect', async (interaction) => {
+            interaction.deferUpdate();
+            const ticketChannel = await message.guild.channels.create(`${message.author.tag}-ticket`, { type: 'GUILD_TEXT', parent: categoryID });
+            await ticketChannel.permissionOverwrites.edit(message.guild.roles.everyone, { VIEW_CHANNEL: false });
+            await ticketChannel.permissionOverwrites.edit(message.author, { VIEW_CHANNEL: true });
+            const modRole = message.guild.roles.cache.find(role => role.name === "Modérateur");
+            if (modRole) {
+                await ticketChannel.permissionOverwrites.edit(modRole, { VIEW_CHANNEL: true });
+            }
+            interaction.followUp({ content: `Ticket créé : <#${ticketChannel.id}>` });
+        });
+
+        collector.on('end', () => {
+            if (!sentMessage.deleted) {
+                sentMessage.edit({ components: [] });
+            }
+        });
+    }).catch(console.error);
+}
+
     }
 });
 
